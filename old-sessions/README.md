@@ -1,70 +1,119 @@
-## Challenge:
+# Old Sessions — CTF Writeup
 
-Old Sessions
+| Field | Details |
+| :--- | :--- |
+| **Challenge** | Old Sessions |
+| **Category** | Web Exploitation |
+| **Vulnerability** | Session Management / Session Hijacking |
 
-## Category:
+---
 
-Web Exploitation
+## Challenge Overview
 
-## Vulnerability:
+The application suffered from severe session management flaws: excessively long session lifetimes combined with an endpoint leaking active user session tokens, allowing an unauthenticated attacker to hijack an administrative session.
 
-Session Management / Session Hijacking
+---
 
-## Initial clue:
+## Initial Clue
 
 The challenge description mentioned that misconfigured session expiration could leave a user's session active indefinitely.
 
-The server set the session cookie to expire in **2027**, indicating an excessively long session lifetime.
+Inspecting the session cookie revealed that the server set the expiration date to **2027**, indicating an excessively long, persistent session lifetime.
 
-## Enumeration:
+---
 
-1. Inspected the application using the browser and DevTools.
-2. Checked **Application → Cookies** and identified the `session` cookie.
-3. Checked the application's pages and comments.
-4. Discovered the `/sessions` endpoint from a comment.
-5. `/sessions` exposed active session IDs and their associated users.
-6. Found a valid session belonging to the `admin` user.
+## Enumeration
 
-## Exploit:
+1. **Inspect Application in Browser:**
+   Explored application functionality and inspected client-side storage via Developer Tools.
+2. **Identify Session Cookie:**
+   Navigated to `Application → Cookies` and identified the active `session` cookie.
+3. **Inspect Page Source & Comments:**
+   Reviewed HTML comments and application pages for hidden routes or developer notes.
+4. **Discover Leaked Endpoint:**
+   Discovered the `/sessions` endpoint referenced inside a developer comment.
+5. **Inspect Leaked Sessions:**
+   Navigated to `/sessions`. The endpoint publicly exposed active session IDs along with their associated usernames.
+6. **Identify Administrative Token:**
+   Identified an active session token belonging to the `admin` user.
 
-1. Logged in as a normal user.
-2. Obtained the admin session ID from `/sessions`.
-3. Replaced the normal user's `session` cookie with the leaked admin session ID using browser DevTools.
-4. Reloaded the application.
-5. The server accepted the session as belonging to `admin`, resulting in account takeover and access to the flag.
+---
 
-## Tools:
+## Exploitation
 
-* Kali Linux
-* Firefox/Chromium browser
-* Browser Developer Tools
+1. **Log in as Normal User:**
+   Established a baseline session as an unprivileged user.
+2. **Retrieve Admin Session ID:**
+   Extracted the leaked admin session identifier from the `/sessions` endpoint.
+3. **Session Replay / Cookie Replacement:**
+   Using browser DevTools (`Application → Cookies`), replaced the unprivileged `session` cookie value with the leaked `admin` session ID.
+4. **Reload Application:**
+   Refreshed the browser.
+5. **Account Takeover & Flag Retrieval:**
+   The server blindly trusted the administrative session token, granting immediate administrative privileges and revealing the flag.
 
-  * Application → Cookies
-  * Network
-* `curl` for HTTP enumeration
+### Attack Flow
+```text
+Inspect HTML / Comments
+         │
+         ▼
+Discover /sessions endpoint
+         │
+         ▼
+Extract Admin Session ID
+         │
+         ▼
+Replace session Cookie in DevTools
+         │
+         ▼
+Refresh Page ──> Account Takeover ──> Admin Access & Flag
+```
 
-## What I learned:
+---
 
-* Authentication often depends on a session cookie rather than repeatedly checking the password.
-* A valid session token can effectively act as an authentication credential.
-* Session IDs must be treated as sensitive information.
-* Session hijacking can allow account takeover without knowing the victim's password.
-* Always inspect cookies, HTTP requests, responses, and session-related endpoints during web CTFs.
-* A useful methodology is: **enumerate → understand what the application trusts → find a weakness → replay/manipulate the trusted value → verify the impact.**
+## Tools Used
 
-## Why the vulnerability existed:
+* **Kali Linux**
+* **Firefox / Chromium Browser**
+* **Browser Developer Tools**
+  * `Application → Cookies` (Cookie inspection and modification)
+  * `Network` tab (Request & response analysis)
+* **`curl`** (Command-line HTTP enumeration)
 
-The application had poor session management. Sessions were configured with an excessively long expiration time, while the `/sessions` endpoint exposed valid session identifiers and their associated users.
+---
 
-This allowed an attacker to obtain an administrator's still-valid session token and reuse it.
+## What I Learned
 
-## How to prevent it:
+* **Session tokens are bearer credentials:** Authentication frequently relies entirely on session cookies rather than repeatedly checking user credentials.
+* **Possession equals identity:** Whoever holds a valid session token is treated by the server as that user, enabling account takeover without needing the user's password.
+* **Session IDs are highly sensitive:** Exposing session identifiers in logs, APIs, or debugging endpoints completely compromises authentication security.
+* **Session longevity amplifies risk:** Sessions that do not expire or remain valid indefinitely leave persistent windows for hijacking.
+* **Core Web CTF Methodology:**
+  ```text
+  Enumerate ──> Identify Trusted State ──> Locate Weakness ──> Replay/Manipulate ──> Verify Impact
+  ```
 
-* Never expose session IDs to users.
-* Remove or restrict debugging/session-management endpoints.
-* Use reasonable session expiration and idle timeouts.
-* Invalidate sessions properly during logout.
-* Rotate session IDs after authentication when appropriate.
-* Use `HttpOnly`, `Secure`, and appropriate `SameSite` cookie attributes.
-* Protect administrative functionality with proper authorization checks.
-* Treat session tokens as sensitive credentials.
+---
+
+## Why the Vulnerability Existed
+
+The application suffered from two critical session management flaws:
+1. **Excessive Session Lifetimes:** Sessions were configured with multi-year expiration dates rather than short, inactivity-based timeouts.
+2. **Exposed Session Tokens:** The `/sessions` debugging endpoint publicly disclosed valid session identifiers mapped to user accounts.
+
+Because the server accepted valid session tokens without secondary validation (such as IP binding, user agent checks, or re-authentication), any user who obtained the admin token could impersonate the administrator.
+
+---
+
+## How to Prevent It
+
+* **Never Expose Session IDs:** Session identifiers must remain secret and never be exposed in API responses, URLs, client-side scripts, or debug endpoints.
+* **Remove Debug Endpoints:** Remove or strictly restrict access to administrative, profiling, and session-listing endpoints in production environments.
+* **Implement Strict Timeouts:** Enforce reasonable absolute session expiration (e.g. 15–30 minutes) and idle inactivity timeouts.
+* **Invalidate on Logout:** Ensure sessions are properly destroyed server-side upon user logout.
+* **Rotate Session Identifiers:** Re-issue new session tokens upon authentication, privilege changes, and critical actions.
+* **Use Secure Cookie Flags:**
+  * `HttpOnly`: Prevents JavaScript access to cookies (mitigates XSS-based session theft).
+  * `Secure`: Ensures cookies are only sent over encrypted HTTPS connections.
+  * `SameSite=Lax` / `SameSite=Strict`: Protects against Cross-Site Request Forgery (CSRF).
+* **Enforce Proper Authorization:** Protect sensitive administrative functions with server-side role and permission checks, not just the presence of a cookie.

@@ -1,7 +1,7 @@
 # Head Dump — Full CTF Write-Up
 
-| | |
-|---|---|
+| Field | Details |
+| :--- | :--- |
 | **Platform** | picoCTF |
 | **Category** | Web Exploitation |
 | **Difficulty** | Easy |
@@ -9,28 +9,24 @@
 
 ---
 
-## Challenge
+## Challenge Overview
 
-The application exposed a `/heapdump` endpoint that allowed anyone to request a Node.js/V8 heap snapshot.
-
-Because a heap snapshot contains objects and strings currently held in the server's memory, sensitive information such as the flag could be recovered from it.
+The application exposed a `/heapdump` diagnostic endpoint that allowed unauthenticated users to request a Node.js/V8 heap snapshot. Because heap snapshots contain runtime objects, memory variables, and strings currently held in server RAM, sensitive information such as the flag could be recovered directly from memory.
 
 ---
 
 ## Initial Clue
 
-The challenge description indicated that the application was a blog and mentioned:
-
+The challenge description indicated that the application was a blog and highlighted:
 - API Documentation
 - An endpoint that generates files containing the server's memory
-- A secret flag hidden somewhere in that memory
+- A secret flag hidden somewhere inside that memory
 
-This suggested that we should:
-
+This suggested a clear enumeration strategy:
 1. Enumerate the web application.
 2. Find the API documentation.
 3. Inspect the documented API endpoints.
-4. Find the endpoint responsible for generating a memory dump.
+4. Locate the endpoint responsible for generating the memory dump.
 5. Download and analyze the dump.
 
 ---
@@ -40,20 +36,17 @@ This suggested that we should:
 ### 1. Initial Web Enumeration
 
 The target was:
-
 ```text
 http://verbal-sleep.picoctf.net:<PORT>/
 ```
 
-I first used Gobuster to discover directories and files.
-
+We first used Gobuster to discover directories and files:
 ```bash
 gobuster dir -u http://verbal-sleep.picoctf.net:<PORT>/ \
--w /usr/share/dirb/wordlists/common.txt
+  -w /usr/share/dirb/wordlists/common.txt
 ```
 
 #### Results
-
 ```text
 About       (Status: 200)
 about       (Status: 200)
@@ -64,90 +57,70 @@ img         (Status: 301)
 
 The generic wordlist did not discover `/api-docs`.
 
-This demonstrated an important enumeration lesson:
-
-> A tool not finding an endpoint does not prove that the endpoint does not exist.
-
-The endpoint may simply not be present in the wordlist.
+> [!IMPORTANT]
+> **Enumeration Principle:** A tool failing to find an endpoint does not mean the endpoint does not exist. It only means the endpoint was not present in that specific wordlist.
 
 ---
 
 ### 2. API-Specific Enumeration
 
-I then used an API-focused SecLists wordlist:
-
+We then tested an API-focused SecLists wordlist:
 ```bash
 gobuster dir \
--u http://verbal-sleep.picoctf.net:<PORT>/ \
--w /usr/share/seclists/Discovery/Web-Content/common-api-endpoints-mazen160.txt
+  -u http://verbal-sleep.picoctf.net:<PORT>/ \
+  -w /usr/share/seclists/Discovery/Web-Content/common-api-endpoints-mazen160.txt
 ```
 
-This only found:
-
+#### Results
 ```text
 about (Status: 200)
 ```
 
-Again, `/api-docs` was not discovered.
-
-Instead of assuming it didn't exist, I inspected the application's HTML.
+Again, `/api-docs` was not discovered via brute-forcing. Instead of assuming it didn't exist, we inspected the application's HTML source.
 
 ---
 
 ### 3. Inspecting HTML Source
 
-I used:
-
+We extracted links and referenced resources from the page HTML:
 ```bash
 curl -s http://verbal-sleep.picoctf.net:<PORT>/ | \
-grep -Eoi 'href="[^"]+"|src="[^"]+"'
+  grep -Eoi 'href="[^"]+"|src="[^"]+"'
 ```
 
-This extracted links and referenced resources from the HTML.
-
-Among the results was:
-
+Among the extracted endpoints was:
 ```text
 href="/api-docs"
 ```
 
-This was our API documentation endpoint.
+This immediately revealed the API documentation route.
 
 #### Why this worked
+The homepage itself contained a direct link to the API documentation, even though generic wordlists hadn't included the exact path.
 
-The homepage itself contained a link to the API documentation, even though our Gobuster wordlists hadn't discovered it.
-
-This demonstrates why web enumeration should combine:
-
-* Directory/file brute-forcing
-* HTML/source inspection
-* Browser inspection
-* JavaScript analysis
-* Network traffic analysis
+This demonstrates why effective web enumeration should always combine:
+* Directory and file brute-forcing
+* HTML and source code inspection
+* Browser DevTools inspection
+* JavaScript file analysis
+* Network traffic inspection
 
 ---
 
 ## API Documentation
 
-I opened:
-
+We navigated to:
 ```text
 http://verbal-sleep.picoctf.net:<PORT>/api-docs
 ```
 
-The application presented a **Swagger UI** interface.
+The application rendered an interactive **Swagger UI** interface documenting the available API routes. Among the endpoints was:
 
-Swagger documented the available API endpoints.
-
-Among the endpoints was:
-
-```text
+```http
 GET /heapdump
 ```
 
-The endpoint description indicated that it was related to diagnosing memory allocation.
-
-This immediately matched the challenge's clue about an endpoint that generates files containing the server's memory.
+The endpoint description indicated that it was used for diagnosing memory allocation issues. This matched the challenge clue regarding memory snapshots.
 
 ---
 
@@ -155,48 +128,32 @@ This immediately matched the challenge's clue about an endpoint that generates f
 
 ### 1. Accessing the Heap Dump
 
-The `/heapdump` endpoint required no parameters.
+The `/heapdump` endpoint required no authentication or parameters. Executing the request through Swagger UI returned:
 
-I executed the request through Swagger UI.
-
-The response was:
-
-```text
-HTTP 200
+```http
+HTTP 200 OK
 Content-Type: application/octet-stream
 Content-Disposition: attachment; filename="heapdump-....heapsnapshot"
 ```
 
-This confirmed that the server was providing a downloadable heap snapshot.
-
-The application was also identified as an Express/Node.js application through the HTTP response header:
-
-```text
+The response confirmed that the server was serving a downloadable heap snapshot. The response header also confirmed the backend technology:
+```http
 X-Powered-By: Express
 ```
 
----
-
 ### 2. Downloading the Heap Snapshot
 
-The heap dump could also be retrieved directly using curl:
-
+The snapshot could also be retrieved directly via `curl`:
 ```bash
 curl -o heapdump.heapsnapshot \
-http://verbal-sleep.picoctf.net:<PORT>/heapdump
+  http://verbal-sleep.picoctf.net:<PORT>/heapdump
 ```
 
-The `-o` option tells curl to save the response to a file.
+The `-o` option instructs `curl` to save the output directly to a file.
 
-I then checked the downloaded file:
-
+We verified the file:
 ```bash
 ls -lh heapdump.heapsnapshot
-```
-
-and:
-
-```bash
 file heapdump.heapsnapshot
 ```
 
@@ -204,439 +161,233 @@ file heapdump.heapsnapshot
 
 ## Analyzing the Heap Dump
 
-The heap snapshot was very large and contained a huge amount of Node.js/V8 runtime data.
+The heap snapshot was very large, containing extensive Node.js/V8 runtime data. Dumping the entire file or using generic string searches produced an unmanageable amount of noise.
 
-Dumping the entire file with `cat` or using a broad search produced enormous amounts of output.
-
-Instead, I searched specifically for the picoCTF flag format.
-
+Instead, we searched specifically for the picoCTF flag format:
 ```bash
 grep -aoE 'picoCTF\{[^}]+\}' heapdump.heapsnapshot
 ```
 
-This returned the flag.
+This immediately extracted the flag.
 
 ---
 
 ## Understanding the Flag Search
 
-The regex:
-
+The regular expression used:
 ```text
 picoCTF\{[^}]+\}
 ```
 
-matches strings following the general format:
-
+Matches strings adhering to the flag structure:
 ```text
 picoCTF{something}
 ```
 
-Breaking it down:
+### Breakdown:
+| Token | Meaning |
+| :--- | :--- |
+| `picoCTF` | Matches literal characters `picoCTF` |
+| `\{` | Matches literal opening curly brace `{` |
+| `[^}]` | Matches any character *except* `}` |
+| `+` | Matches one or more repetitions of the preceding character |
+| `\}` | Matches literal closing curly brace `}` |
 
-```text
-picoCTF
-```
-
-Matches the literal text `picoCTF`.
-
-```text
-\{
-```
-
-Matches the opening `{`.
-
-```text
-[^}]
-```
-
-Means any character except `}`.
-
-```text
-+
-```
-
-Means one or more of the preceding characters.
-
-```text
-\}
-```
-
-Matches the closing `}`.
-
-Therefore:
-
-```text
-picoCTF\{[^}]+\}
-```
-
-means:
-
-> Find a string beginning with `picoCTF{`, containing one or more characters that are not `}`, and ending with `}`.
+**Overall Meaning:**
+> Find any string beginning with `picoCTF{`, containing one or more characters that are not `}`, and terminating with `}`.
 
 ---
 
 ## Why `-o` Was Important
 
-A broader command such as:
-
+A broad search using `strings`:
 ```bash
 strings heapdump.heapsnapshot | grep -i 'picoCTF'
 ```
-
-returned several matches.
-
-However, searching for generic words such as:
-
+returned multiple matches, but searching for generic terms such as `flag`:
 ```bash
 strings heapdump.heapsnapshot | grep -i 'flag'
 ```
+produced enormous amounts of unrelated V8 runtime output.
 
-produced a huge amount of unrelated Node.js/V8 runtime data.
-
-The successful command was:
-
+The optimal command was:
 ```bash
 grep -aoE 'picoCTF\{[^}]+\}' heapdump.heapsnapshot
 ```
 
-The important option was:
+The `-o` flag instructs `grep` to:
+> **Output only the matching text portion**, rather than the entire line containing the match.
 
-```text
--o
-```
-
-which means:
-
-> Output only the matching portion.
-
-Without `-o`, grep can print the entire line containing the match. Since a heap snapshot contains very large structured lines, that can result in enormous output.
+Because heap snapshots store data in massive single-line JSON structures, omitting `-o` causes `grep` to dump megabytes of surrounding memory data for a single match.
 
 ---
 
 ## Tools Used
 
 ### Gobuster
-
-Used for directory and endpoint enumeration.
-
+Used for directory and endpoint brute-forcing:
 ```bash
 gobuster dir -u http://TARGET/ \
--w /usr/share/dirb/wordlists/common.txt
+  -w /usr/share/dirb/wordlists/common.txt
 ```
 
 ### SecLists
-
-Used an API-specific wordlist:
-
+Used an API-specific wordlist for targeted route discovery:
 ```text
 /usr/share/seclists/Discovery/Web-Content/common-api-endpoints-mazen160.txt
 ```
 
 ### curl
-
-Used to manually interact with the web application and download the heap dump.
-
+Used to interact with web endpoints and download binary heap snapshots:
 ```bash
 curl -s URL
-```
-
-```bash
 curl -i URL
-```
-
-```bash
 curl -o filename URL
 ```
 
 ### grep
-
-Used to search and extract interesting information from the application's HTML and heap snapshot.
+Used to filter links from HTML source and extract matching flag patterns from memory dumps.
 
 ### Swagger UI
-
-Used to inspect the documented API endpoints and identify:
-
-```text
-GET /heapdump
-```
+Used to view documented API endpoints and identify `GET /heapdump`.
 
 ---
 
 ## What I Learned
 
 ### 1. Enumeration is more than directory brute-forcing
+Gobuster relies strictly on the provided wordlist. Just because a wordlist does not contain `/api-docs` does not mean the route is nonexistent. In this case, the link was present directly in the homepage HTML.
 
-Gobuster is useful, but it depends heavily on the wordlist.
+### 2. Always inspect page source
+Web pages frequently reference resources not found by general wordlists:
+* API documentation links
+* Hidden development functionality
+* Client-side JavaScript bundles
+* Administrative consoles
+* Configuration files and routes
 
-Not finding:
-
-```text
-/api-docs
-```
-
-doesn't mean the endpoint doesn't exist.
-
-The endpoint was actually exposed through the application's HTML source.
-
----
-
-### 2. Always inspect the application's source
-
-A website may contain links to:
-
-* API documentation
-* hidden functionality
-* JavaScript files
-* administrative pages
-* API endpoints
-* configuration files
-
-A simple command such as:
-
+A quick search can reveal hidden assets:
 ```bash
 curl -s URL | grep -iE 'api|swagger|docs'
 ```
 
-can reveal useful information.
+### 3. Swagger / OpenAPI documentation is invaluable
+Swagger UI maps the entire accessible API surface. Instead of guessing endpoints like `/api/v1/debug` or `/dump`, Swagger documents exact routes, methods, parameters, and descriptions.
 
----
+### 4. Understand command-line flags
+* `curl -s`: Silent output (no progress bar).
+* `grep -a`: Process a binary file as text.
+* `grep -o`: Print only the matched text.
+* `grep -E`: Interpret pattern as Extended Regular Expression (ERE).
 
-### 3. Swagger/OpenAPI documentation is valuable during enumeration
+Understanding individual flags allows precise tool composition without memorizing rigid commands.
 
-Swagger UI provides a map of an application's API.
-
-Instead of guessing:
-
-```text
-/api
-/api/v1
-/api/debug
-/api/dump
-...
-```
-
-we can inspect the documented endpoints directly.
-
----
-
-### 4. Learn what commands do instead of memorizing huge commands
-
-For example:
-
-```bash
-curl -s URL
-```
-
-means:
-
-```text
-curl → make HTTP request
--s   → silent output
-```
-
-And:
-
-```bash
-grep -aoE 'PATTERN' file
-```
-
-means:
-
-```text
-grep → search
--a   → treat as text
--o   → output only matches
--E   → extended regex
-```
-
-The important skill is understanding the building blocks so commands can be constructed when needed.
-
----
-
-### 5. Zsh has an important `PATH` behavior
-
-While doing enumeration, I initially used:
-
-```bash
-for path in ...
-```
-
-In Zsh, `path` is a special variable associated with `PATH`.
-
-Using `path` as a loop variable changed the shell's PATH and caused commands such as `curl` and `nano` to stop being found.
-
-The safer approach is to use variables such as:
-
-```bash
-for endpoint in ...
-```
-
-or:
-
-```bash
-for route in ...
-```
-
-This was an important Linux/Zsh lesson.
+### 5. Caution with Zsh Reserved Variables
+> [!WARNING]
+> In Zsh, the variable `path` is tied directly to the system `PATH` environment variable.
+> Using `for path in ...` inside a Zsh shell overwrites your `PATH`, causing commands like `curl`, `ls`, or `nano` to immediately become unreachable.
+> Always use descriptive loop variable names like `for endpoint in ...` or `for route in ...`.
 
 ---
 
 ## Why the Vulnerability Existed
 
 The application exposed a diagnostic heap-dump endpoint:
-
-```text
+```http
 GET /heapdump
 ```
+publicly on the internet without authentication or authorization.
 
-without requiring authentication or authorization.
+Heap dumps are debugging artifacts intended exclusively for developers and system administrators. A Node.js heap snapshot contains everything stored in the V8 process memory:
+* Strings and global variables
+* Application state and cached data
+* Session tokens, secrets, and credentials
+* Internal object references
 
-Heap dumps are normally debugging/diagnostic artifacts intended for developers or administrators.
-
-A heap snapshot can contain data that exists in the application's memory, including:
-
-* Strings
-* Objects
-* Variables
-* Application state
-* Potential credentials
-* Tokens
-* Secrets
-* Other sensitive information
-
-Therefore, exposing the endpoint publicly created an information-disclosure vulnerability.
-
-In this challenge, the flag was intentionally placed somewhere in the application's memory so that retrieving the heap dump would expose it.
+Exposing memory snapshots to unauthenticated users creates a critical information disclosure vulnerability.
 
 ---
 
 ## How to Prevent It
 
-### 1. Do not expose diagnostic endpoints publicly
-
+### 1. Never Expose Diagnostic Endpoints Publicly
 Endpoints such as:
-
 ```text
 /heapdump
 /debug
 /metrics
 /profiler
 ```
+must never be accessible over public networks.
 
-should not normally be accessible to unauthenticated internet users.
-
----
-
-### 2. Require authentication and authorization
-
-If a heap-dump endpoint is necessary, restrict it to authorized administrators or developers.
-
-For example:
-
+### 2. Enforce Strict Authentication & Authorization
+If diagnostic endpoints are necessary, restrict them to verified administrative roles via VPN, localhost binding, or mutual TLS:
 ```text
-User
- ↓
-Authentication
- ↓
-Authorization
- ↓
-/heapdump
+Authenticated Admin ──> Authorized Role ──> Access /heapdump
 ```
 
-rather than:
+### 3. Disable Debug Features in Production
+Ensure development and profiling tools are omitted from production builds and container deployments.
 
-```text
-Anyone
- ↓
-/heapdump
- ↓
-Memory dump
-```
+### 4. Protect In-Memory Secrets
+Avoid storing sensitive keys and cleartext credentials in memory longer than necessary, and zero out secrets after use.
 
----
-
-### 3. Disable debugging functionality in production
-
-Debugging and diagnostic features should be disabled when they are not required.
-
-Development functionality should not accidentally be deployed to a production environment.
-
----
-
-### 4. Protect sensitive data in application memory
-
-Applications should avoid keeping sensitive information in memory longer than necessary.
-
-Secrets should also be handled carefully because memory snapshots can expose application state.
-
----
-
-### 5. Perform security testing before deployment
-
-Endpoints should be reviewed to determine whether they expose:
-
-* Internal information
-* Debug functionality
-* Stack traces
-* Configuration
-* Memory
-* Credentials
-* Tokens
-* Internal APIs
+### 5. Perform Security Audits Prior to Release
+Regularly inspect API documentation, Swagger configs, and route definitions to verify internal debug routes are not inadvertently exposed.
 
 ---
 
 ## Attack Chain
 
-The complete attack chain was:
-
 ```text
 Public Web Application
-        ↓
+        │
+        ▼
 HTML Source Enumeration
-        ↓
-/api-docs
-        ↓
-Swagger UI
-        ↓
-GET /heapdump
-        ↓
-Unauthenticated Heap Snapshot
-        ↓
-Download Server Memory
-        ↓
-Search Heap Snapshot
-        ↓
-picoCTF{...}
+        │
+        ▼
+/api-docs Discovered
+        │
+        ▼
+Swagger UI Documentation
+        │
+        ▼
+Locate GET /heapdump
+        │
+        ▼
+Unauthenticated Heap Snapshot Download
+        │
+        ▼
+Dump Process Memory (heapdump.heapsnapshot)
+        │
+        ▼
+Regex Pattern Search (grep -aoE 'picoCTF\{[^}]+\}')
+        │
+        ▼
+picoCTF{...} Flag Recovered
 ```
 
 ---
 
 ## Key Takeaway
 
-The main lesson from this challenge was not simply:
-
-> "Use `/heapdump`."
-
-The more important lesson was understanding the **enumeration process**:
+> [!TIP]
+> The primary lesson was not simply downloading `/heapdump`, but mastering the **enumeration process**:
 
 ```text
 Enumerate
    ↓
-Inspect
+Inspect HTML & Scripts
    ↓
-Identify technologies
+Identify Technologies
    ↓
-Find documentation
+Discover Documentation
    ↓
-Understand endpoints
+Understand Route Capabilities
    ↓
-Identify dangerous functionality
+Isolate Dangerous Endpoints
    ↓
-Retrieve data
+Retrieve Data & Snapshot
    ↓
-Analyze it intelligently
+Analyze Memory Intelligently
 ```
-
-The vulnerability was an **information disclosure caused by exposing a Node.js heap snapshot endpoint without proper access control**.

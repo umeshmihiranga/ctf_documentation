@@ -1,23 +1,26 @@
-## Challenge:
+# Crack the Gate 1 — CTF Writeup
 
-Crack the Gate 1
+| Field | Details |
+| :--- | :--- |
+| **Challenge** | Crack the Gate 1 |
+| **Category** | Web Exploitation |
+| **Difficulty** | Easy |
+| **Vulnerability** | Authentication bypass through a developer/debug HTTP header |
 
-## Category:
+---
 
-Web Exploitation — Easy
-
-## Vulnerability:
-
-Authentication bypass through a developer/debug HTTP header
-
-## Initial Clue:
+## Initial Clue
 
 The challenge gave us the victim's email:
-`ctf-player@picoctf.org`
+```text
+ctf-player@picoctf.org
+```
 
-It also said that normal password guessing wasn't working and hinted that **the developer had left a secret way in**.
+It also stated that normal password guessing wasn't working and hinted that **the developer had left a secret way in**.
 
-## Enumeration:
+---
+
+## Enumeration
 
 1. Opened the login page.
 2. Inspected the HTML source.
@@ -30,7 +33,9 @@ It also said that normal password guessing wasn't working and hinted that **the 
 
 This indicated that the application had a special developer access mechanism.
 
-## Exploit:
+---
+
+## Exploit
 
 Added the custom HTTP header to the login request:
 ```http
@@ -44,26 +49,30 @@ curl -v -H "X-Dev-Access: yes" ...
 
 The server trusted this client-controlled header and allowed the developer bypass instead of requiring the normal password.
 
-## Tools:
+---
 
-* Browser
-* Developer Tools
-* View Source
-* `curl`
-* HTTP headers
+## Tools
+
+* **Browser** & **Developer Tools** (View Source / Network)
+* `curl` (HTTP request manipulation)
+* HTTP request headers
 * ROT13 decoding
 
-## What I Learned:
+---
+
+## What I Learned
 
 * How to inspect HTML source for leaked developer information.
 * How ROT13 can hide simple clues.
-* What HTTP request headers are.
+* What HTTP request headers are and how they are structured.
 * How `curl -H` adds a custom HTTP header.
-* How `curl -v` shows the HTTP request and response.
+* How `curl -v` shows full HTTP request and response flow.
 * How authentication can be bypassed when the server blindly trusts a client-supplied header.
 * Why understanding HTTP is extremely important for web exploitation.
 
-## Why the Vulnerability Existed:
+---
+
+## Why the Vulnerability Existed
 
 The application contained a developer backdoor that trusted the value of a custom HTTP header supplied by the client.
 
@@ -73,33 +82,36 @@ X-Dev-Access: yes
 ```
 as proof that the requester should receive privileged access.
 
-The developer also accidentally exposed the bypass instructions in the page source.
-
-## How to Prevent It:
-
-* Never implement authentication bypasses based solely on client-controlled headers.
-* Remove debugging/backdoor functionality from production applications.
-* Never leave secrets or internal instructions in HTML/JavaScript comments.
-* Perform proper server-side authentication and authorization.
-* Treat every client-supplied header as untrusted input.
-* Review production code and configuration for development/test access mechanisms.
+The developer also accidentally exposed the bypass instructions in the page source comments.
 
 ---
 
-# Curl Notes — Web CTF Reference
+## How to Prevent It
+
+* **Never implement authentication bypasses based solely on client-controlled headers.**
+* **Remove debugging/backdoor functionality** completely from production applications.
+* **Never leave secrets or internal instructions** in HTML or JavaScript comments.
+* **Perform proper server-side authentication and authorization.**
+* **Treat every client-supplied header as untrusted input.**
+* **Review production code and configuration** for lingering development or test access mechanisms.
+
+---
+---
+
+# 🌐 Curl Notes — Web CTF Reference
 
 ## What is curl?
 
 `curl` is a command-line tool for communicating with web servers and APIs.
 
-Instead of using a browser, I can use `curl` to manually construct HTTP requests and inspect the server's responses.
+Instead of using a browser, `curl` allows you to manually construct HTTP requests and inspect the server's exact responses.
 
 **Basic syntax:**
 ```bash
 curl [options] URL
 ```
 
-For web CTFs, `curl` is useful because it lets me control and inspect:
+For web CTFs, `curl` is useful because it lets you control and inspect:
 * HTTP methods
 * Headers
 * Request bodies
@@ -108,19 +120,21 @@ For web CTFs, `curl` is useful because it lets me control and inspect:
 * Redirects
 * Server responses
 
+---
+
 ## 1. `-v` — Verbose
 
 ```bash
 curl -v http://target.com
 ```
 
-`-v` means **verbose**. It shows details about the HTTP communication.
+`-v` means **verbose**. It shows complete details about the underlying HTTP communication.
 
 The important symbols are:
-* `>` = request sent by me
-* `<` = response sent by the server
+* `>` = Request sent by client
+* `<` = Response sent by the server
 
-**Example:**
+**Example output:**
 ```text
 > GET /login HTTP/1.1
 > Host: target.com
@@ -130,57 +144,62 @@ The important symbols are:
 < Content-Type: text/html
 ```
 
-This allows me to see what `curl` actually sends and what the server returns.
+This allows you to see what `curl` actually sends and what the server returns.
 
-**CTF use:**
-* Inspect HTTP requests
+**CTF use cases:**
+* Inspect raw HTTP requests
 * See response status codes
 * Find redirects
-* See cookies
-* See headers
-* Debug requests
+* Inspect cookies and headers
+* Debug custom requests
 
-## 2. `-i` — Include response headers
+---
+
+## 2. `-i` — Include Response Headers
 
 ```bash
 curl -i http://target.com
 ```
 
-Normally `curl` mainly displays the response body. With `-i`, it also displays the response headers.
+Normally `curl` displays only the response body. With `-i`, it includes the response headers before the body.
 
-**Example:**
-```text
+**Example output:**
+```http
 HTTP/1.1 200 OK
 Content-Type: text/html
 Set-Cookie: session=abc123
 ```
 
 **Useful for discovering:**
-* Cookies
+* Cookies (`Set-Cookie`)
 * Status codes
-* Server information
+* Server information (`Server`, `X-Powered-By`)
 * Security headers
-* Redirect information
+* Redirect information (`Location`)
 
-## 3. `-I` — HEAD request
+---
+
+## 3. `-I` — HEAD Request (Headers Only)
 
 ```bash
 curl -I http://target.com
 ```
 
-`-I` requests only the HTTP headers instead of the normal page body. Useful when I quickly want to inspect how a server responds.
+`-I` requests only the HTTP headers instead of downloading the page body. This is useful when quickly inspecting server headers without dumping large amounts of HTML.
 
 **Difference:**
 * `-i` = headers + body
-* `-I` = headers only
+* `-I` = headers only (`HEAD` request)
 
-## 4. `-H` — Add an HTTP header
+---
+
+## 4. `-H` — Add an HTTP Header
 
 ```bash
 curl -H "X-Test: hello" http://target.com
 ```
 
-`-H` allows me to add a custom HTTP request header.
+`-H` allows you to add a custom HTTP request header.
 
 **Example:**
 ```bash
@@ -199,7 +218,7 @@ Headers can contain information such as:
 * User agent
 * Custom application data
 
-I can send multiple headers:
+You can send multiple headers in a single command:
 ```bash
 curl \
   -H "Content-Type: application/json" \
@@ -210,7 +229,9 @@ curl \
 > [!IMPORTANT]
 > Custom headers are controlled by the client, so a secure application should never blindly trust them for authentication or authorization.
 
-## 5. `-X` — Specify the HTTP method
+---
+
+## 5. `-X` — Specify the HTTP Method
 
 ```bash
 curl -X GET http://target.com
@@ -219,16 +240,16 @@ curl -X PUT http://target.com
 curl -X DELETE http://target.com
 ```
 
-It allows me to explicitly select the HTTP method.
+Allows you to explicitly select the HTTP request method.
 
 **Common methods:**
-```text
-GET     → retrieve something
-POST    → submit/create something
-PUT     → replace/update something
-PATCH   → partially update something
-DELETE  → delete something
-```
+| Method | Description |
+| :--- | :--- |
+| `GET` | Retrieve a resource |
+| `POST` | Submit or create data |
+| `PUT` | Replace or update a resource |
+| `PATCH` | Partially update a resource |
+| `DELETE` | Remove a resource |
 
 For example:
 ```bash
@@ -236,15 +257,17 @@ curl -X POST http://target.com/login
 ```
 
 > [!NOTE]
-> `-d` normally causes curl to use POST automatically, so `-X POST` isn't always necessary.
+> Supplying `-d` causes `curl` to use `POST` automatically, so `-X POST` isn't always strictly necessary.
 
-## 6. `-d` — Send request data
+---
+
+## 6. `-d` — Send Request Data
 
 ```bash
 curl -d "username=admin&password=test" http://target.com/login
 ```
 
-`-d` means **data**. It sends data in the request body.
+`-d` stands for **data**. It sends data in the HTTP request body with a default `application/x-www-form-urlencoded` header.
 
 For JSON APIs:
 ```bash
@@ -254,15 +277,17 @@ curl \
   http://target.com/login
 ```
 
-This is extremely useful for testing login forms and APIs.
+This is essential for testing login forms, API endpoints, and injection vectors.
 
-## 7. `-b` — Send cookies
+---
+
+## 7. `-b` — Send Cookies
 
 ```bash
 curl -b "session=abc123" http://target.com/dashboard
 ```
 
-This sends:
+This sends an HTTP `Cookie` header:
 ```http
 Cookie: session=abc123
 ```
@@ -273,9 +298,11 @@ Cookies are commonly used for:
 * User preferences
 * Tracking
 
-In CTFs, understanding cookies is very important because session manipulation is a common attack area.
+In CTFs, understanding cookies is critical because session manipulation and token forging are frequent attack areas.
 
-## 8. `-c` — Save cookies
+---
+
+## 8. `-c` — Save Cookies (Cookie Jar)
 
 ```bash
 curl -c cookies.txt http://target.com/login
@@ -283,39 +310,42 @@ curl -c cookies.txt http://target.com/login
 
 This saves cookies received from the server into `cookies.txt`.
 
-I can then reuse them:
+You can then reuse them in subsequent requests:
 ```bash
 curl -b cookies.txt http://target.com/dashboard
 ```
 
-**Useful workflow:**
+**Standard session workflow:**
 ```text
 Login
   ↓
-Receive session cookie
+Receive session cookie (saved via -c)
   ↓
-Save cookie
-  ↓
-Reuse cookie
+Reuse cookie (via -b)
   ↓
 Access authenticated page
 ```
 
-## 9. `-L` — Follow redirects
+---
+
+## 9. `-L` — Follow Redirects
 
 Suppose the server responds:
 ```http
 HTTP/1.1 302 Found
 Location: /login
 ```
-The server is telling the client to go somewhere else.
+The server instructs the client to navigate to another location.
 
-Normally, `curl http://target.com/admin` may stop at the redirect.
-
-With `curl -L http://target.com/admin`, `curl` follows the redirect.
+Normally, `curl http://target.com/admin` stops at the redirect response. With `-L`, `curl` automatically follows the `Location` header to the final page:
+```bash
+curl -L http://target.com/admin
+```
 
 > [!IMPORTANT]
-> **CTF Habit:** First try `curl -v http://target.com/admin` and look at the `Location` header before automatically using `-L`. The redirect itself may reveal useful information.
+> **CTF Habit:** First run `curl -v http://target.com/admin` and inspect the `Location` header before automatically using `-L`. The intermediate redirect response itself may leak sensitive information or flags.
+
+---
 
 ## 10. `-u` — HTTP Basic Authentication
 
@@ -325,84 +355,89 @@ curl -u admin:password http://target.com
 
 This is specifically for **HTTP Basic Authentication**.
 
-`curl` generates an HTTP header similar to:
+`curl` automatically generates an HTTP `Authorization` header:
 ```http
 Authorization: Basic YWRtaW46cGFzc3dvcmQ=
 ```
 
-The credentials are essentially `admin:password` encoded using Base64.
+The credentials are `admin:password` encoded using Base64.
 
 > [!NOTE]
-> Base64 is **encoding, not encryption**.
+> Base64 is **encoding, not encryption**. Anyone intercepting the header can decode the credentials.
 
-I can see the authentication header using:
+You can observe the generated header via:
 ```bash
 curl -v -u admin:password http://target.com
 ```
 
-`-u` should not be confused with a normal website login form.
+*(Note: `-u` is for HTTP Basic Auth challenges, not HTML login forms).*
 
-## 11. `-o` — Save response to a file
+---
+
+## 11. `-o` — Save Response to a File
 
 ```bash
 curl -o page.html http://target.com
 ```
 
-This saves the response as `page.html`. I can then inspect it:
+Saves the response body directly to `page.html`. You can then inspect or search it:
 ```bash
 cat page.html
-```
-or search it:
-```bash
 grep -i "flag" page.html
 ```
 
-## 12. `-s` — Silent mode
+---
+
+## 12. `-s` — Silent Mode
 
 ```bash
 curl -s http://target.com
 ```
 
-Removes unnecessary progress/output information. This is useful when piping `curl` into other Linux commands:
+Silences progress meters and error messages. This is especially useful when piping output into other command-line utilities:
 ```bash
 curl -s http://target.com | grep -i flag
 ```
 
-## Most Important Curl Flags for Web CTFs:
+---
+
+## Most Important Curl Flags for Web CTFs
 
 | Flag | Meaning | Importance |
-| ---- | -------------------------------- | ---------- |
+| :--- | :--- | :--- |
 | `-v` | Show detailed HTTP communication | ⭐⭐⭐⭐⭐ |
-| `-H` | Add/modify request header | ⭐⭐⭐⭐⭐ |
-| `-d` | Send request body/data | ⭐⭐⭐⭐⭐ |
+| `-H` | Add or modify request header | ⭐⭐⭐⭐⭐ |
+| `-d` | Send request body / data | ⭐⭐⭐⭐⭐ |
 | `-i` | Show response headers + body | ⭐⭐⭐⭐⭐ |
 | `-b` | Send cookies | ⭐⭐⭐⭐⭐ |
 | `-L` | Follow redirects | ⭐⭐⭐⭐⭐ |
-| `-X` | Choose HTTP method | ⭐⭐⭐⭐ |
-| `-c` | Save cookies | ⭐⭐⭐⭐ |
+| `-X` | Specify HTTP method | ⭐⭐⭐⭐ |
+| `-c` | Save cookies to file | ⭐⭐⭐⭐ |
 | `-u` | HTTP Basic Auth | ⭐⭐⭐ |
-| `-I` | Headers only | ⭐⭐⭐ |
+| `-I` | Headers only (HEAD) | ⭐⭐⭐ |
 | `-s` | Silent mode | ⭐⭐⭐ |
-| `-o` | Save output | ⭐⭐⭐ |
+| `-o` | Save output to file | ⭐⭐⭐ |
 
-## The Most Useful CTF Combinations:
+---
 
-### See exactly what is happening
+## The Most Useful CTF Combinations
+
+### 1. See exactly what is happening
 ```bash
 curl -v http://target.com
 ```
 
-### Inspect headers
+### 2. Inspect response headers
 ```bash
 curl -i http://target.com
 ```
 
-### Send a custom header
+### 3. Send a custom header
 ```bash
 curl -v -H "X-Test: hello" http://target.com
 ```
 
-### Send JSON
+### 4. Send JSON body
 ```bash
 curl -v \
   -H "Content-Type: application/json" \
@@ -410,38 +445,39 @@ curl -v \
   http://target.com/login
 ```
 
-### Use cookies
+### 5. Capture and replay cookies
 ```bash
 curl -c cookies.txt http://target.com/login
 curl -b cookies.txt http://target.com/dashboard
 ```
 
-### Follow redirects
+### 6. Follow redirects with verbose output
 ```bash
 curl -v -L http://target.com
 ```
 
-### Basic authentication
+### 7. Basic authentication
 ```bash
 curl -v -u admin:password http://target.com
 ```
 
-## Crack the Gate 1 Example:
+---
 
-The challenge leaked:
+## Crack the Gate 1 Example
+
+The challenge leaked the following header requirement:
 ```text
 X-Dev-Access: yes
 ```
 
-I can construct the HTTP request using `curl`:
+We constructed the request using `curl`:
 ```bash
 curl -v \
   -H "X-Dev-Access: yes" \
   ...
 ```
 
-The important concept isn't memorizing this particular command. It's understanding:
-
+The underlying concept:
 ```text
 curl
  ↓
@@ -451,14 +487,16 @@ HTTP request header
  ↓
 X-Dev-Access: yes
  ↓
-Server processes the header
+Server processes header
  ↓
 Authentication bypass
 ```
 
-## My Curl Learning Rule:
+---
 
-When practicing web CTFs, I should ask:
+## My Curl Learning Rule
+
+When practicing web CTFs, always ask:
 1. **What HTTP request is the browser making?**
 2. **What method is it using?**
 3. **What headers does it send?**
@@ -466,9 +504,9 @@ When practicing web CTFs, I should ask:
 5. **What data is in the request body?**
 6. **What does the server return?**
 
-Then I reproduce that request with `curl`.
+Then reproduce that request with `curl`.
 
-The goal isn't to memorize `curl` commands. The goal is to become comfortable saying:
+The goal isn't to memorize individual flags, but to become comfortable saying:
 
 > **"I know what HTTP request I want, and I know how to construct it with curl."**
 
