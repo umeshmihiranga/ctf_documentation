@@ -324,4 +324,3 @@ This is a fundamental web reconnaissance technique:
 
 > **Identify a technology or concept → determine the associated resource → inspect it → follow the next clue.**
 
-````
