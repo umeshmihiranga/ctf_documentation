@@ -31,7 +31,7 @@ Login Page
 Username:
 Password:
 [Login]
-````
+```
 
 The page also indicated that only letters and numbers were allowed for the username and password.
 
@@ -378,4 +378,4 @@ Client-side authentication + hardcoded credentials
 picoCTF{j5_15_7r4n5p4r3n7_05df90c8}
 ```
 
-```
+

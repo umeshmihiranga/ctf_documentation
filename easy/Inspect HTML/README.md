@@ -34,7 +34,7 @@ I opened Developer Tools using:
 
 ```text
 F12
-````
+```
 
 or:
 
@@ -119,5 +119,3 @@ Extract flag
 ```
 
 This was a basic example of **information disclosure through client-side HTML**.
-
-```

@@ -25,7 +25,7 @@ The following cookies were present:
 admin=False
 password=js
 username=admin
-````
+```
 
 The important cookie was:
 
@@ -122,5 +122,3 @@ should not be trusted simply because they are stored in browser cookies. Authori
 * Cookie inspection
 * Client-side authorization bypass
 * Access-control testing
-
-````

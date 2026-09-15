@@ -31,7 +31,7 @@ First, I retrieved the website:
 
 ```bash
 curl -i http://wily-courier.picoctf.net:54246/
-````
+```
 
 The HTML contained a comment revealing the first part of the flag:
 

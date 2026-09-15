@@ -26,7 +26,7 @@ This suggests checking the website's `robots.txt` file.
 
 ```bash
 curl -s http://fickle-tempest.picoctf.net:60267/robots.txt
-````
+```
 
 ### Output
 
@@ -92,5 +92,3 @@ curl -s http://fickle-tempest.picoctf.net:60267/cc6b1.html
 ## Attack Technique
 
 **Robots.txt Enumeration → Hidden Path Discovery → Direct Resource Access**
-
-````

@@ -1,9 +1,4 @@
-Absolutely. Let's document **IntroToBurp** in the same style as your other picoCTF GitHub write-ups, with the emphasis on **how we reasoned our way to the exploit**, not just the flag.
-
 # IntroToBurp — picoCTF
-
-````markdown
-# IntroToBurp
 
 ## Challenge
 
@@ -45,7 +40,7 @@ First, I opened the challenge instance:
 
 ```text
 http://titan.picoctf.net:<PORT>/
-````
+```
 
 I verified that the server was reachable using `curl`:
 
@@ -435,5 +430,3 @@ otp=1234
 was the obvious authentication parameter.
 
 Removing it completely exposed the application's failure to enforce the second authentication factor.
-
-````

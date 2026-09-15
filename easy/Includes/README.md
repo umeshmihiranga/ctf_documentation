@@ -1,4 +1,3 @@
-````markdown
 # picoCTF - Includes
 
 ## Challenge Information
@@ -25,7 +24,7 @@ I went to:
 
 ```text
 DevTools → Sources
-````
+```
 
 The page loaded several resources:
 

@@ -12,7 +12,7 @@
 
 ```text
 http://wily-courier.picoctf.net:56064/
-````
+```
 
 ---
 
@@ -108,4 +108,4 @@ Instead of looking only at the webpage body, inspecting the **HTTP response head
 
 > Always consider the full HTTP request/response, including HTTP methods and response headers. Information may be exposed outside the visible webpage.
 
-````
+```

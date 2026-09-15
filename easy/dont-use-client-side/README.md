@@ -49,7 +49,7 @@ function verify() {
         alert("Incorrect password");
     }
 }
-````
+```
 
 ---
 
@@ -146,4 +146,4 @@ Sensitive security checks should always be performed **server-side**.
 
 Anything delivered to the browser—including JavaScript, HTML, and client-side validation logic—should be considered visible and potentially modifiable by an attacker.
 
-````
+
