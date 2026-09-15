@@ -1,5 +1,3 @@
-
-````markdown
 # 🍪 Cookies — picoCTF
 
 **Category:** Web Exploitation  
@@ -19,7 +17,7 @@ The initial cookie was:
 
 ```text
 name=-1
-````
+```
 
 Changing this cookie value produced different cookie responses.
 
@@ -351,6 +349,6 @@ Automate Testing
 Retrieve Flag
 ```
 
-```
+---
 
-flag:picoCTF{3v3ry1_l0v3s_c00k135_a4dadb49}
+**Flag:** `picoCTF{3v3ry1_l0v3s_c00k135_a4dadb49}`
